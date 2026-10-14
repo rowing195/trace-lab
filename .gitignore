@@ -4,3 +4,4 @@ node_modules/
 .sites-local/
 .preview.log
 qa/
+.taste-skill/

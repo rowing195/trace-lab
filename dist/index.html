@@ -3,10 +3,13 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="theme-color" content="#f4f5f7" />
-  <meta name="description" content="把自由手繪變成傅立葉公式，探索諧波階數、擬合誤差與雙軸旋轉圓動畫。" />
-  <title>Trace Lab — 傅立葉描形實驗室</title>
+  <meta name="theme-color" content="#edf2f4" />
+  <meta name="description" content="畫下一筆，調整 N，看傅立葉級數描回你的形狀。自由手繪、雙軸旋轉圓、即時擬合誤差與完整公式。" />
+  <title>Trace Lab｜讓圓畫出你的線條</title>
   <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=STIX+Two+Text:ital,wght@0,400;0,600;1,400;1,600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="./studio.css" />
 </head>
 <body>
@@ -19,52 +22,73 @@
     <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5" /></symbol>
     <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18M9 6V3h6v3M6 6l1 15h10l1-15M10 10v7M14 10v7" /></symbol>
   </defs></svg>
+
+  <a class="skip-link" href="#drawingPanel">跳到手繪畫布</a>
   <header class="site-header">
-    <a class="brand" href="./" aria-label="Trace Lab 首頁"><span class="brand-icon"><svg viewBox="0 0 36 36"><circle cx="14" cy="18" r="10"/><circle cx="23" cy="18" r="7"/><circle class="brand-point" cx="14" cy="8" r="2.5"/></svg></span><strong>trace<span>lab</span><span class="brand-period">.</span></strong></a>
-    <nav class="header-nav" aria-label="主要導覽"><a class="nav-current" href="#studio">繪圖工作室</a><a href="#formulaPanel">公式與係數</a></nav>
-    <button class="help-button" id="helpButton"><span class="help-icon">?</span> 運作原理</button>
+    <a class="brand" href="./" aria-label="Trace Lab 首頁"><svg viewBox="0 0 36 36" aria-hidden="true"><circle cx="14" cy="18" r="10"/><circle cx="23" cy="18" r="7"/><circle class="brand-point" cx="14" cy="8" r="2.5"/></svg><strong>trace lab</strong></a>
+    <nav class="header-nav" aria-label="主要導覽"><a class="nav-current" href="#studio">繪圖</a><a href="#formulaPanel">公式</a></nav>
+    <button class="help-button" id="helpButton">怎麼運作 <span aria-hidden="true">↗</span></button>
   </header>
   <main>
-    <section class="page-intro"><div><p class="eyebrow">形狀與數學的遊樂場 <span>INTERACTIVE FOURIER</span></p><h1>隨手畫<span>。</span>讓數學接手<span>。</span></h1><p class="intro-description">從一筆自由的線條，到一組精確的公式。探索每個圓如何讓形狀成真。</p></div><div class="intro-note"><span class="intro-note-title">畫下形狀，調整細節。</span><span>其餘的，交給旋轉的圓。</span></div></section>
     <div class="studio-grid" id="studio">
-      <aside class="control-panel">
-        <section class="panel drawing-panel">
-          <div class="section-heading"><h2><span class="step">01</span> 畫一個形狀</h2><button id="clearButton" class="icon-button clear-button" title="清除畫布" aria-label="清除畫布"><svg><use href="#i-trash"/></svg><span>清除</span></button></div>
-          <div class="draw-surface"><canvas id="drawCanvas" aria-label="手繪畫布，按住滑鼠或手指畫出一條路徑"></canvas><div class="draw-prompt" id="drawPrompt" hidden><svg><use href="#i-pencil"/></svg><strong>從這裡開始畫</strong><span>按住滑鼠，讓線條自由走</span></div><span class="canvas-badge"><span></span> 自由繪製</span></div>
-          <div class="drawing-meta"><span>按住拖曳，放開即完成。</span><span id="pointCount">1,024 個取樣點</span></div>
-          <div class="example-row"><button data-example="heart" class="example active"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20 3.8 12a5.2 5.2 0 0 1 8.2-6.3A5.2 5.2 0 0 1 20.2 12Z"/></svg>愛心</button><button data-example="star" class="example"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 2 3.1 6.3 6.9 1-5 4.9 1.2 6.8-6.2-3.2-6.2 3.2 1.2-6.8-5-4.9 6.9-1Z"/></svg>星形</button><button data-example="flower" class="example"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8c-6-10-13 1-5 4-8 3-1 14 5 4 6 10 13-1 5-4 8-3 1-14-5-4Z"/></svg>花瓣</button></div>
-          <label class="checkbox-line"><input type="checkbox" id="closedToggle" checked /><span>自動連接起點與終點</span><span class="info-dot" title="關閉後，沿原路往返重建，適合開放曲線。">i</span></label>
+      <section class="animation-panel" aria-label="重建動畫">
+        <div class="stage-heading"><h1>你的線條，<br>圓來完成。</h1><div class="stage-reading"><span class="n-badge" id="nBadge">N = 12</span><span class="stage-error">誤差 <span id="stageError">待繪製</span></span></div></div>
+        <p class="stage-description">畫下一筆，調整 N，<br class="mobile-break">看傅立葉級數描回你的形狀。</p>
+        <div class="animation-surface">
+          <canvas id="animationCanvas" aria-label="X 軸與 Y 軸的傅立葉旋轉圓及重建動畫"></canvas>
+          <div class="empty-overlay" id="emptyOverlay" hidden><strong>等你畫下第一筆</strong><span>在手繪區拖曳，或選擇一個範例。</span><a href="#drawingPanel" class="text-button">前往畫布</a></div>
+        </div>
+        <div class="stage-meta"><div class="canvas-legend"><span><i class="axis-x"></i>X 分量</span><span><i class="axis-y"></i>Y 分量</span><span><i class="trace"></i>重建路徑</span></div><span id="coordinateReadout">x 0.000 · y 0.000</span></div>
+        <div class="playback">
+          <button id="playButton" class="play-button" aria-label="暫停動畫"><svg><use href="#i-pause"/></svg><span id="playLabel">暫停</span></button>
+          <button id="restartButton" class="icon-button" aria-label="重新播放" title="重新播放"><svg><use href="#i-reset"/></svg></button>
+          <div class="timeline"><div class="timeline-label"><span>描繪進度</span><span id="progressLabel">0%</span></div><input id="progressSlider" type="range" min="0" max="1000" value="0" aria-label="動畫進度" /></div>
+          <label class="speed-control"><span class="sr-only">速度</span><select id="speedSelect" aria-label="動畫速度"><option value="0.25">0.25×</option><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option></select></label>
+        </div>
+        <a class="mobile-draw-link" href="#drawingPanel">畫你自己的形狀 <span aria-hidden="true">↓</span></a>
+      </section>
+      <aside class="control-panel" aria-label="繪圖與參數">
+        <section class="drawing-panel" id="drawingPanel">
+          <div class="section-heading"><h2>先畫一筆</h2><button id="clearButton" class="icon-button clear-button" title="清除畫布" aria-label="清除畫布"><svg><use href="#i-trash"/></svg><span>重畫</span></button></div>
+          <p class="drawing-instruction">按住拖曳，放開就能看見公式。</p>
+          <div class="draw-surface"><canvas id="drawCanvas" aria-label="手繪畫布，按住滑鼠或手指畫出一條路徑"></canvas><div class="draw-prompt" id="drawPrompt" hidden><svg><use href="#i-pencil"/></svg><strong>隨意畫，不用完美。</strong><span>滑鼠、觸控筆、手指都可以</span></div><span class="canvas-note" id="pointCount">1,024 個取樣點</span><span class="draw-corner" aria-hidden="true"><svg><use href="#i-pencil"/></svg></span></div>
+          <div class="example-row" aria-label="範例形狀">
+            <button data-example="heart" class="example active"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20 3.8 12a5.2 5.2 0 0 1 8.2-6.3A5.2 5.2 0 0 1 20.2 12Z"/></svg>愛心</button>
+            <button data-example="star" class="example"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 2 3.1 6.3 6.9 1-5 4.9 1.2 6.8-6.2-3.2-6.2 3.2 1.2-6.8-5-4.9 6.9-1Z"/></svg>星形</button>
+            <button data-example="flower" class="example"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8c-6-10-13 1-5 4-8 3-1 14 5 4 6 10 13-1 5-4 8-3 1-14-5-4Z"/></svg>花瓣</button>
+          </div>
+          <label class="checkbox-line"><input type="checkbox" id="closedToggle" checked /><span>連接起點與終點</span><span class="info-dot" title="關閉後沿原路往返，適合開放曲線。">?</span></label>
         </section>
-        <section class="panel parameter-panel">
-          <div class="section-heading"><h2><span class="step">02</span> 找到剛好的細節</h2></div>
-          <div class="n-heading"><label for="nInput">諧波階數 <i>N</i><span>輸入數字，或拖動滑桿</span></label><div class="n-input-wrap"><input id="nInput" type="number" min="0" max="256" step="1" value="12" aria-describedby="nHint" /><span>階</span></div></div>
+        <section class="parameter-panel">
+          <div class="n-heading"><div><h2>調整細節</h2><label for="nInput">諧波階數 <i>N</i></label></div><div class="n-input-wrap"><input id="nInput" type="number" min="0" max="256" step="1" value="12" aria-describedby="nHint" /><span>階</span></div></div>
           <input type="range" id="nSlider" min="0" max="256" step="1" value="12" aria-label="諧波階數 N" />
-          <div class="range-labels"><span>0</span><span>128</span><span>256</span></div>
-          <div class="preset-row"><button data-n="3">N = 3</button><button data-n="12" class="active">N = 12</button><button data-n="50">N = 50</button><button data-n="128">N = 128</button></div>
-          <p id="nHint" class="hint">更多的圓，還原更多細節。每軸使用 N 個旋轉圓。</p>
-          <details class="display-settings"><summary>畫面顯示<span>3 個選項</span></summary>
-          <label class="switch-line"><span><span class="legend-dot original"></span> 原始路徑</span><input id="originalToggle" type="checkbox" role="switch" checked /></label>
-          <label class="switch-line"><span><span class="legend-dot axis"></span> 旋轉圓與投影線</span><input id="circlesToggle" type="checkbox" role="switch" checked /></label>
-          <label class="switch-line"><span><span class="legend-dot outline"></span> 完整擬合輪廓</span><input id="outlineToggle" type="checkbox" role="switch" checked /></label>
+          <div class="range-labels"><span>0</span><span>256</span></div>
+          <div class="preset-row"><button data-n="3">3</button><button data-n="12" class="active">12</button><button data-n="50">50</button><button data-n="128">128</button></div>
+          <p id="nHint" class="hint">N 越大，保留的細節越多。每軸使用 N 個旋轉圓。</p>
+          <a class="mobile-result-link" href="#studio">看重建動畫 <span aria-hidden="true">↑</span></a>
+          <details class="display-settings"><summary>顯示設定<span aria-hidden="true">＋</span></summary>
+            <label class="switch-line"><span>原始路徑</span><input id="originalToggle" type="checkbox" role="switch" checked /></label>
+            <label class="switch-line"><span>旋轉圓與投影線</span><input id="circlesToggle" type="checkbox" role="switch" checked /></label>
+            <label class="switch-line"><span>完整擬合輪廓</span><input id="outlineToggle" type="checkbox" role="switch" checked /></label>
           </details>
         </section>
-        <div class="side-note"><span class="status-dot"></span> 所有計算都在你的瀏覽器內完成</div>
-      </aside>
-      <div class="main-column">
-        <section class="animation-panel">
-          <div class="animation-heading"><div><span class="step">03</span><h2>看形狀慢慢成形</h2></div><span class="n-badge" id="nBadge">N = 12</span></div>
-          <div class="animation-surface"><canvas id="animationCanvas" aria-label="X 軸與 Y 軸的傅立葉旋轉圓及重建動畫"></canvas><div class="empty-overlay" id="emptyOverlay" hidden><strong>下一個形狀，由你開始。</strong><span>在畫布上拖曳，或選擇一個範例。</span></div><div class="canvas-legend"><span><i class="axis-x"></i> X 分量</span><span><i class="axis-y"></i> Y 分量</span><span><i class="trace"></i> 重建路徑</span></div><span class="canvas-coordinate" id="coordinateReadout">x 0.000 · y 0.000</span><span class="stage-caption">每一次旋轉，都更接近你的線條。</span></div>
-          <div class="playback"><button id="playButton" class="play-button" aria-label="暫停動畫"><svg><use href="#i-pause"/></svg><span id="playLabel">暫停</span></button><button id="restartButton" class="icon-button" aria-label="重新播放" title="重新播放"><svg><use href="#i-reset"/></svg></button><div class="timeline"><div class="timeline-label"><span>描繪進度</span><span id="progressLabel">0%</span></div><input id="progressSlider" type="range" min="0" max="1000" value="0" aria-label="動畫進度" /></div><label class="speed-control"><span>速度</span><select id="speedSelect" aria-label="動畫速度"><option value="0.25">0.25×</option><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option></select></label></div>
+        <section class="results-panel" aria-label="擬合誤差">
+          <div class="metric-top"><div><h2>還差多少？</h2><p id="errorDescription">正在計算</p></div><div class="error-value"><span id="errorValue">—</span><span>%</span></div></div>
+          <div class="chart-heading"><h3>N 與錯誤率</h3><span id="chartSelection">N = 12</span></div>
+          <canvas id="errorChart" aria-label="N 階數與正規化均方根誤差的曲線圖，點擊可選取 N" role="img"></canvas>
+          <p class="chart-note">點擊曲線切換 N。誤差為 NRMSE，相對於形狀外框對角線。</p>
         </section>
-        <div class="results-row">
-          <section class="metric-panel"><div class="metric-title">擬合錯誤率 <span class="metric-tag">NRMSE</span></div><div class="error-value"><span id="errorValue">—</span><span>%</span></div><div class="metric-bottom"><span class="status-dot"></span><span id="errorDescription">正在計算</span></div><p>相對於原始圖形外框對角線</p></section>
-          <section class="chart-panel"><div class="chart-heading"><h3>細節與誤差</h3><span id="chartSelection">N = 12</span></div><canvas id="errorChart" aria-label="N 階數與正規化均方根誤差的曲線圖，點擊可選取 N" role="img"></canvas><div class="chart-footer"><span>錯誤率 (%)</span><span>點擊曲線可切換 N →</span></div></section>
-        </div>
-      </div>
+        <p class="privacy-note">筆跡留在這裡。所有計算都在你的瀏覽器內完成。</p>
+      </aside>
     </div>
-    <section class="panel formula-panel" id="formulaPanel"><div class="formula-top"><div><p class="formula-eyebrow">BEHIND THE SHAPE</p><div class="section-heading"><h2>一筆線條，兩個公式。</h2><span class="formula-tag">參數式</span></div><p>每個座標都是旋轉的總和。展開係數，看看形狀背後的數學。</p></div><div class="formula-actions"><button id="copyButton" class="text-button"><svg><use href="#i-copy"/></svg>複製公式</button><button id="downloadButton" class="text-button primary-action"><svg><use href="#i-download"/></svg>匯出係數</button></div></div><div class="equations"><div><span class="axis-badge x">X</span><div id="formulaX" class="equation">x(t) = cₓ + Σ [aₖ cos(kt) + bₖ sin(kt)]</div></div><div><span class="axis-badge y">Y</span><div id="formulaY" class="equation">y(t) = cᵧ + Σ [cₖ cos(kt) + dₖ sin(kt)]</div></div><span class="domain">t ∈ [0, 2π]</span></div><details id="coefficientDetails"><summary>查看各階係數 <span id="coefficientCount">12 階 · 每軸 25 個係數</span></summary><p class="coefficient-note">座標等比例縮放，外框最長邊為 2，Y 軸向上。常數項：<span id="constantTerms"></span>。係數以小數點後 6 位顯示，匯出保留完整精度。</p><div class="table-scroll"><table><thead><tr><th>階數 k</th><th>X · cos(kt)</th><th>X · sin(kt)</th><th>Y · cos(kt)</th><th>Y · sin(kt)</th></tr></thead><tbody id="coefficientBody"></tbody></table></div></details></section>
-    <footer><span class="footer-brand">trace lab<span>讓好奇心，有跡可循。</span></span><span>傅立葉級數 · 1,024 點等弧長取樣</span></footer>
+    <section class="formula-panel" id="formulaPanel">
+      <div class="formula-top"><div><h2>形狀背後的公式</h2><p>兩個座標，都是圓的疊加。<br>把係數帶走，讓這條線在別處繼續。</p></div><div class="formula-actions"><button id="copyButton" class="text-button"><svg><use href="#i-copy"/></svg>複製公式</button><button id="downloadButton" class="text-button primary-action"><svg><use href="#i-download"/></svg>匯出係數</button></div></div>
+      <div class="equations"><div><span class="axis-badge x">X</span><div id="formulaX" class="equation">x(t) = cₓ + Σ [aₖ cos(kt) + bₖ sin(kt)]</div></div><div><span class="axis-badge y">Y</span><div id="formulaY" class="equation">y(t) = cᵧ + Σ [cₖ cos(kt) + dₖ sin(kt)]</div></div><span class="domain">t ∈ [0, 2π]</span></div>
+      <details id="coefficientDetails"><summary>查看各階係數 <span id="coefficientCount">12 階 · 每軸 25 個係數</span><span class="details-plus" aria-hidden="true">＋</span></summary><p class="coefficient-note">座標等比例縮放，外框最長邊為 2，Y 軸向上。常數項：<span id="constantTerms"></span>。係數以小數點後 6 位顯示，匯出保留完整精度。</p><div class="table-scroll"><table><thead><tr><th>階數 k</th><th>X · cos(kt)</th><th>X · sin(kt)</th><th>Y · cos(kt)</th><th>Y · sin(kt)</th></tr></thead><tbody id="coefficientBody"></tbody></table></div></details>
+    </section>
+    <footer><a href="#studio" class="footer-brand">trace lab</a><p>從一筆線條，走進傅立葉的世界。</p><a href="#drawingPanel">再畫一筆 ↑</a></footer>
   </main>
+  <noscript><p class="noscript-note">Trace Lab 需要 JavaScript 才能計算與繪圖。請啟用 JavaScript 後重新載入。</p></noscript>
   <div class="toast" id="toast" role="status" hidden></div>
   <dialog id="helpDialog"><div class="dialog-heading"><h2>圓，怎麼畫出任意形狀？</h2><button class="icon-button" id="closeHelp" aria-label="關閉說明">×</button></div><p>先把你的筆跡切成 1,024 個等距取樣點，再對 X、Y 座標分別計算離散傅立葉係數。</p><ol><li><strong>畫下形狀：</strong>按住並拖曳，放開後自動計算。新的一筆會取代原路徑。</li><li><strong>選擇 N：</strong>保留第 1 到 N 階諧波，N = 0 只保留平均位置。每軸有 2N + 1 個純量係數。</li><li><strong>看圓轉動：</strong>第 k 階以 k 倍速度旋轉，半徑為 √(aₖ² + bₖ²)。X 鏈取水平投影、Y 鏈取垂直投影，交點就是重建座標。</li></ol><div class="help-math">錯誤率 = 100 × √mean[(x − x̂)² + (y − ŷ)²] ÷ 外框對角線</div><p>誤差比較的是同一參數位置的 1,024 個取樣點，並不是面積或辨識正確率。增加 N 不會增加取樣誤差；最高 256 階仍可能保留些微誤差。</p><p>勾選「自動連接」時，末點會以直線接回起點。關閉後沿原路往返，適合未封閉的線條。所有圖形運算都在瀏覽器內完成。</p><p class="hint">快捷鍵：空白鍵播放／暫停；R 重新播放。手機也可以用手指畫圖。</p></dialog>
   <script type="module" src="./app.js"></script>

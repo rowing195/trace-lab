@@ -3,10 +3,13 @@ import { TAU, MAX_N, SAMPLE_COUNT, analyzePath, normalizePath, reconstruct, eval
 const $ = id => document.getElementById(id);
 const drawCanvas = $('drawCanvas'), animationCanvas = $('animationCanvas'), errorChart = $('errorChart');
 const surfaces = new Map();
+const theme = getComputedStyle(document.documentElement);
+const token = name => theme.getPropertyValue(name).trim();
 const palette = {
-  x: '#385ee7', y: '#ce654e', ink: '#252730', axis: '#e0e5ef',
-  original: '#aeb8ca', outline: '#385ee72e', muted: '#8a96ad',
-  xCircle: '#385ee76e', yCircle: '#ce654e75', xArm: '#385ee7b3', yArm: '#ce654eb3',
+  x: token('--x'), y: token('--y'), ink: token('--ink'), axis: '#b6ccd9',
+  original: '#829ba9', outline: '#18364d30', muted: token('--muted'),
+  xCircle: token('--x') + '90', yCircle: token('--y') + '9e',
+  xArm: token('--x') + 'ba', yArm: token('--y') + 'ba',
 };
 const state = { model: null, points: [], draft: [], drawing: false, pointerId: null, n: 12, t: 0, playing: !matchMedia('(prefers-reduced-motion: reduce)').matches, speed: 1, reconstruction: [], example: 'heart', showOriginal: true, showCircles: true, showOutline: true, closed: true };
 let toastTimer, lastTime = 0, uiTime = 0, chartMax = 64, nTimer;
@@ -44,14 +47,12 @@ function dot(ctx, x, y, radius, color) { ctx.beginPath(); ctx.arc(x, y, radius, 
 function renderDrawing() {
   const { ctx, width: w, height: h } = surface(drawCanvas), scale = Math.min(w, h) * .37;
   ctx.clearRect(0, 0, w, h);
-  line(ctx, w / 2, 25, w / 2, h - 25, '#e9ecf4', 1);
-  line(ctx, 25, h / 2, w - 25, h / 2, '#e9ecf4', 1);
   const points = state.drawing ? state.draft : state.points;
   if (points.length) {
-    path(ctx, points, w / 2, h / 2, scale, palette.x, 2.4);
+    path(ctx, points, w / 2, h / 2, scale, palette.ink, 2.8);
     if (!state.drawing && state.closed) {
       const a = points.at(-1), b = points[0];
-      line(ctx, w / 2 + a.x * scale, h / 2 - a.y * scale, w / 2 + b.x * scale, h / 2 - b.y * scale, '#8c9ee4', 1.3, [3, 4]);
+      line(ctx, w / 2 + a.x * scale, h / 2 - a.y * scale, w / 2 + b.x * scale, h / 2 - b.y * scale, palette.original, 1.3, [3, 4]);
     }
     dot(ctx, w / 2 + points[0].x * scale, h / 2 - points[0].y * scale, 3, palette.x);
   }
@@ -81,15 +82,15 @@ function formatCoefficient(value, digits = 6) { return (Math.abs(value) < .5 * 1
 function updateFit() {
   const model = state.model, n = state.n;
   $('nInput').value = n; $('nSlider').value = n; $('nBadge').textContent = `N = ${n}`;
-  $('nSlider').style.background = `linear-gradient(to right, ${palette.x} ${n / MAX_N * 100}%, #e9ecf3 ${n / MAX_N * 100}%)`;
   document.querySelectorAll('[data-n]').forEach(button => {
     const active = Number(button.dataset.n) === n;
+    button.setAttribute('aria-label', `N = ${button.dataset.n}`);
     button.classList.toggle('active', active); button.setAttribute('aria-pressed', active);
   });
   $('emptyOverlay').hidden = !!model;
   for (const id of ['playButton', 'restartButton', 'progressSlider', 'copyButton', 'downloadButton']) $(id).disabled = !model;
   if (!model) {
-    state.reconstruction = []; $('errorValue').textContent = '—'; $('errorDescription').textContent = '等待你的第一筆';
+    state.reconstruction = []; $('errorValue').textContent = '—'; $('stageError').textContent = '待繪製'; $('errorDescription').textContent = '等待你的第一筆';
     $('coefficientBody').replaceChildren(); $('coefficientCount').textContent = '尚無係數'; $('constantTerms').textContent = '—';
     $('formulaX').textContent = 'x(t) = cₓ + Σ [aₖ cos(kt) + bₖ sin(kt)]'; $('formulaY').textContent = 'y(t) = cᵧ + Σ [cₖ cos(kt) + dₖ sin(kt)]';
     $('chartSelection').textContent = '等待繪製'; $('coordinateReadout').textContent = 'x — · y —';
@@ -97,7 +98,7 @@ function updateFit() {
     state.reconstruction = reconstruct(model, n);
     state.rx = model.coefficients.slice(0, n).reduce((sum, c) => sum + c.rx, 0);
     state.ry = model.coefficients.slice(0, n).reduce((sum, c) => sum + c.ry, 0);
-    const error = model.errors[n]; $('errorValue').textContent = formatError(error);
+    const error = model.errors[n]; $('errorValue').textContent = formatError(error); $('stageError').textContent = `${formatError(error)}%`;
     $('errorDescription').textContent = error < 1 ? '與原始線條非常接近' : error < 5 ? '已保留主要形狀' : '增加 N，找回更多細節';
     $('formulaX').textContent = `x(t) = ${formatCoefficient(model.cx, 4)} + Σₖ₌₁…${n} [aₖ cos(kt) + bₖ sin(kt)]`;
     $('formulaY').textContent = `y(t) = ${formatCoefficient(model.cy, 4)} + Σₖ₌₁…${n} [cₖ cos(kt) + dₖ sin(kt)]`;
@@ -130,23 +131,23 @@ function setN(value, announce = false) {
 function renderChart() {
   const { ctx, width: w, height: h } = surface(errorChart);
   ctx.clearRect(0, 0, w, h);
-  const left = 25, right = w - 8, top = 9, bottom = h - 20;
-  ctx.font = '9px "Manrope", sans-serif'; ctx.textBaseline = 'middle';
+  const left = 32, right = w - 12, top = 10, bottom = h - 28;
+  ctx.font = '13px "Segoe UI", sans-serif'; ctx.textBaseline = 'middle';
   const model = state.model, maxError = model ? Math.ceil(model.errors[0] / 10) * 10 || 10 : 40;
   chartMax = Math.max(64, Math.ceil(state.n / 64) * 64);
   for (let i = 0; i <= 2; i++) {
     const y = top + (bottom - top) * i / 2;
-    line(ctx, left, y, right, y, '#edf0f6', 1); ctx.fillStyle = palette.muted; ctx.textAlign = 'right'; ctx.fillText(String(Math.round(maxError * (1 - i / 2))), left - 6, y);
+    ctx.fillStyle = palette.muted; ctx.textAlign = 'right'; ctx.fillText(String(Math.round(maxError * (1 - i / 2))), left - 8, y);
   }
-  for (let i = 0; i <= 4; i++) { ctx.textAlign = 'center'; ctx.fillStyle = palette.muted; ctx.fillText(String(chartMax * i / 4), left + (right - left) * i / 4, h - 6); }
+  for (let i = 0; i <= 4; i++) { ctx.textAlign = 'center'; ctx.fillStyle = palette.muted; ctx.fillText(String(chartMax * i / 4), left + (right - left) * i / 4, h - 8); }
   if (!model) return;
   const x = n => left + n / chartMax * (right - left), y = value => bottom - value / maxError * (bottom - top);
   ctx.beginPath(); ctx.moveTo(left, bottom);
   for (let n = 0; n <= chartMax; n++) ctx.lineTo(x(n), y(model.errors[n]));
-  ctx.lineTo(right, bottom); ctx.closePath(); ctx.fillStyle = '#385ee70d'; ctx.fill();
+  ctx.lineTo(right, bottom); ctx.closePath(); ctx.fillStyle = palette.x + '0d'; ctx.fill();
   ctx.beginPath(); for (let n = 0; n <= chartMax; n++) n ? ctx.lineTo(x(n), y(model.errors[n])) : ctx.moveTo(x(n), y(model.errors[n]));
   ctx.strokeStyle = palette.x; ctx.lineWidth = 1.8; ctx.stroke();
-  line(ctx, x(state.n), top, x(state.n), bottom, '#385ee747', 1, [3, 3]);
+  line(ctx, x(state.n), top, x(state.n), bottom, palette.xCircle, 1, [3, 3]);
   dot(ctx, x(state.n), y(model.errors[state.n]), 4, '#fff'); dot(ctx, x(state.n), y(model.errors[state.n]), 2.5, palette.x);
   errorChart.setAttribute('aria-label', `N 從 0 到 ${chartMax} 的誤差曲線。目前 N = ${state.n}，錯誤率 ${model.errors[state.n].toFixed(3)}%。`);
 }
@@ -162,7 +163,7 @@ function renderAnimation() {
   const reach = scale * 1.2;
   line(ctx, centerX - reach, centerY, centerX + reach, centerY, palette.axis, 1);
   line(ctx, centerX, centerY - reach, centerX, centerY + reach, palette.axis, 1);
-  ctx.font = '10px "Manrope", sans-serif'; ctx.fillStyle = palette.muted; ctx.textAlign = 'left';
+  ctx.font = '13px "Segoe UI", sans-serif'; ctx.fillStyle = palette.muted; ctx.textAlign = 'left';
   ctx.fillText('x', centerX + reach + 5, centerY + 3); ctx.fillText('y', centerX - 3, centerY - reach - 7);
   if (state.showOriginal) { ctx.setLineDash([3, 5]); path(ctx, model.samples, centerX, centerY, scale, palette.original, 1.25, model.samples.length, true); ctx.setLineDash([]); }
   if (state.showOutline) path(ctx, state.reconstruction, centerX, centerY, scale, palette.outline, 1.5);
@@ -182,13 +183,13 @@ function renderAnimation() {
     }
     line(ctx, xx, xy, endX, endY, palette.xCircle, 1, [3, 5]); line(ctx, yx, yy, endX, endY, palette.yCircle, 1, [3, 5]);
     dot(ctx, xx, xy, 3, palette.x); dot(ctx, yx, yy, 3, palette.y);
-    ctx.font = '600 11px "Manrope", sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = palette.x; ctx.fillText('x(t)', centerX, Math.max(20, xDockY - state.rx * scale - 14));
+    ctx.font = 'italic 16px "STIX Two Text", Georgia, serif'; ctx.textAlign = 'center'; ctx.fillStyle = palette.x; ctx.fillText('x(t)', centerX, Math.max(20, xDockY - state.rx * scale - 14));
     ctx.fillStyle = palette.y; ctx.fillText('y(t)', yDockX, Math.min(h - 44, centerY + state.ry * scale + 24));
   }
   const traceCount = Math.floor(progress * SAMPLE_COUNT) + 1;
-  path(ctx, state.reconstruction, centerX, centerY, scale, palette.ink, 2.25, traceCount);
+  path(ctx, state.reconstruction, centerX, centerY, scale, palette.ink, 2.8, traceCount);
   const last = state.reconstruction[Math.min(traceCount - 1, SAMPLE_COUNT)];
-  line(ctx, centerX + last.x * scale, centerY - last.y * scale, endX, endY, palette.ink, 2.25);
+  line(ctx, centerX + last.x * scale, centerY - last.y * scale, endX, endY, palette.ink, 2.8);
   dot(ctx, endX, endY, 5, '#fff'); dot(ctx, endX, endY, 3.4, palette.ink);
 }
 
@@ -259,7 +260,7 @@ $('restartButton').addEventListener('click', () => { state.t = 0; state.playing 
 $('speedSelect').addEventListener('change', event => { state.speed = Number(event.target.value); });
 $('progressSlider').addEventListener('input', event => { state.playing = false; state.t = Number(event.target.value) / 1000; renderAnimation(); updatePlayback(); });
 $('coefficientDetails').addEventListener('toggle', renderCoefficients);
-errorChart.addEventListener('click', event => { if (!state.model) return; const box = errorChart.getBoundingClientRect(); setN(Math.round((event.clientX - box.left - 25) / (box.width - 33) * chartMax)); });
+errorChart.addEventListener('click', event => { if (!state.model) return; const box = errorChart.getBoundingClientRect(); setN(Math.round((event.clientX - box.left - 32) / (box.width - 44) * chartMax)); });
 $('helpButton').addEventListener('click', () => $('helpDialog').showModal());
 $('closeHelp').addEventListener('click', () => $('helpDialog').close());
 $('helpDialog').addEventListener('click', event => { if (event.target === $('helpDialog')) { const r = event.target.getBoundingClientRect(); if (event.clientX < r.left || event.clientX > r.right || event.clientY < r.top || event.clientY > r.bottom) event.target.close(); } });
