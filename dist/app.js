@@ -3,6 +3,11 @@ import { TAU, MAX_N, SAMPLE_COUNT, analyzePath, normalizePath, reconstruct, eval
 const $ = id => document.getElementById(id);
 const drawCanvas = $('drawCanvas'), animationCanvas = $('animationCanvas'), errorChart = $('errorChart');
 const surfaces = new Map();
+const palette = {
+  x: '#385ee7', y: '#ce654e', ink: '#252730', axis: '#e0e5ef',
+  original: '#aeb8ca', outline: '#385ee72e', muted: '#8a96ad',
+  xCircle: '#385ee76e', yCircle: '#ce654e75', xArm: '#385ee7b3', yArm: '#ce654eb3',
+};
 const state = { model: null, points: [], draft: [], drawing: false, pointerId: null, n: 12, t: 0, playing: !matchMedia('(prefers-reduced-motion: reduce)').matches, speed: 1, reconstruction: [], example: 'heart', showOriginal: true, showCircles: true, showOutline: true, closed: true };
 let toastTimer, lastTime = 0, uiTime = 0, chartMax = 64, nTimer;
 
@@ -39,18 +44,16 @@ function dot(ctx, x, y, radius, color) { ctx.beginPath(); ctx.arc(x, y, radius, 
 function renderDrawing() {
   const { ctx, width: w, height: h } = surface(drawCanvas), scale = Math.min(w, h) * .37;
   ctx.clearRect(0, 0, w, h);
-  ctx.fillStyle = '#d9e4e1';
-  for (let x = w / 2 % 18; x < w; x += 18) for (let y = h / 2 % 18; y < h; y += 18) ctx.fillRect(x, y, 1, 1);
-  line(ctx, w / 2, 17, w / 2, h - 17, '#e4eeeb', 1);
-  line(ctx, 17, h / 2, w - 17, h / 2, '#e4eeeb', 1);
+  line(ctx, w / 2, 25, w / 2, h - 25, '#e9ecf4', 1);
+  line(ctx, 25, h / 2, w - 25, h / 2, '#e9ecf4', 1);
   const points = state.drawing ? state.draft : state.points;
   if (points.length) {
-    path(ctx, points, w / 2, h / 2, scale, '#42987f', 2.1);
+    path(ctx, points, w / 2, h / 2, scale, palette.x, 2.4);
     if (!state.drawing && state.closed) {
       const a = points.at(-1), b = points[0];
-      line(ctx, w / 2 + a.x * scale, h / 2 - a.y * scale, w / 2 + b.x * scale, h / 2 - b.y * scale, '#8bb9aa', 1.2, [3, 4]);
+      line(ctx, w / 2 + a.x * scale, h / 2 - a.y * scale, w / 2 + b.x * scale, h / 2 - b.y * scale, '#8c9ee4', 1.3, [3, 4]);
     }
-    dot(ctx, w / 2 + points[0].x * scale, h / 2 - points[0].y * scale, 3, '#267b63');
+    dot(ctx, w / 2 + points[0].x * scale, h / 2 - points[0].y * scale, 3, palette.x);
   }
   $('drawPrompt').hidden = points.length > 0;
 }
@@ -65,17 +68,24 @@ function fit(points, example = null) {
     state.points = normalized; state.model = model; state.example = example; state.t = 0;
     updateFit(); renderDrawing(); save();
     $('pointCount').textContent = '1,024 個取樣點';
-    document.querySelectorAll('[data-example]').forEach(button => button.classList.toggle('active', button.dataset.example === example));
+    document.querySelectorAll('[data-example]').forEach(button => {
+      const active = button.dataset.example === example;
+      button.classList.toggle('active', active); button.setAttribute('aria-pressed', active);
+    });
   } catch (error) { notify(error.message); renderDrawing(); }
 }
 
 function formatError(value) { return value < .001 && value > 1e-8 ? '<0.001' : value.toFixed(3); }
+function formatCoefficient(value, digits = 6) { return (Math.abs(value) < .5 * 10 ** -digits ? 0 : value).toFixed(digits); }
 
 function updateFit() {
   const model = state.model, n = state.n;
   $('nInput').value = n; $('nSlider').value = n; $('nBadge').textContent = `N = ${n}`;
-  $('nSlider').style.background = `linear-gradient(to right, #4ca78d ${n / MAX_N * 100}%, #e7eded ${n / MAX_N * 100}%)`;
-  document.querySelectorAll('[data-n]').forEach(button => button.classList.toggle('active', Number(button.dataset.n) === n));
+  $('nSlider').style.background = `linear-gradient(to right, ${palette.x} ${n / MAX_N * 100}%, #e9ecf3 ${n / MAX_N * 100}%)`;
+  document.querySelectorAll('[data-n]').forEach(button => {
+    const active = Number(button.dataset.n) === n;
+    button.classList.toggle('active', active); button.setAttribute('aria-pressed', active);
+  });
   $('emptyOverlay').hidden = !!model;
   for (const id of ['playButton', 'restartButton', 'progressSlider', 'copyButton', 'downloadButton']) $(id).disabled = !model;
   if (!model) {
@@ -89,11 +99,11 @@ function updateFit() {
     state.ry = model.coefficients.slice(0, n).reduce((sum, c) => sum + c.ry, 0);
     const error = model.errors[n]; $('errorValue').textContent = formatError(error);
     $('errorDescription').textContent = error < 1 ? '與原始線條非常接近' : error < 5 ? '已保留主要形狀' : '增加 N，找回更多細節';
-    $('formulaX').textContent = `x(t) = ${model.cx.toFixed(4)} + Σₖ₌₁…${n} [aₖ cos(kt) + bₖ sin(kt)]`;
-    $('formulaY').textContent = `y(t) = ${model.cy.toFixed(4)} + Σₖ₌₁…${n} [cₖ cos(kt) + dₖ sin(kt)]`;
-    if (n === 0) { $('formulaX').textContent = `x(t) = ${model.cx.toFixed(6)}`; $('formulaY').textContent = `y(t) = ${model.cy.toFixed(6)}`; }
+    $('formulaX').textContent = `x(t) = ${formatCoefficient(model.cx, 4)} + Σₖ₌₁…${n} [aₖ cos(kt) + bₖ sin(kt)]`;
+    $('formulaY').textContent = `y(t) = ${formatCoefficient(model.cy, 4)} + Σₖ₌₁…${n} [cₖ cos(kt) + dₖ sin(kt)]`;
+    if (n === 0) { $('formulaX').textContent = `x(t) = ${formatCoefficient(model.cx)}`; $('formulaY').textContent = `y(t) = ${formatCoefficient(model.cy)}`; }
     $('coefficientCount').textContent = `${n} 階 · 每軸 ${2 * n + 1} 個係數`;
-    $('constantTerms').textContent = `cₓ = ${model.cx.toFixed(6)}，cᵧ = ${model.cy.toFixed(6)}`;
+    $('constantTerms').textContent = `cₓ = ${formatCoefficient(model.cx)}，cᵧ = ${formatCoefficient(model.cy)}`;
     $('chartSelection').textContent = `N = ${n}`;
     renderCoefficients();
   }
@@ -104,7 +114,7 @@ function renderCoefficients() {
   if (!$('coefficientDetails').open || !state.model) return;
   const rows = state.model.coefficients.slice(0, state.n).map(c => {
     const row = document.createElement('tr');
-    for (const value of [c.k, c.ax.toFixed(6), c.bx.toFixed(6), c.ay.toFixed(6), c.by.toFixed(6)]) { const cell = document.createElement('td'); cell.textContent = value; row.append(cell); }
+    for (const value of [c.k, ...[c.ax, c.bx, c.ay, c.by].map(value => formatCoefficient(value))]) { const cell = document.createElement('td'); cell.textContent = value; row.append(cell); }
     return row;
   });
   $('coefficientBody').replaceChildren(...rows);
@@ -121,76 +131,74 @@ function renderChart() {
   const { ctx, width: w, height: h } = surface(errorChart);
   ctx.clearRect(0, 0, w, h);
   const left = 25, right = w - 8, top = 9, bottom = h - 20;
-  ctx.font = '8px "DM Sans", sans-serif'; ctx.textBaseline = 'middle';
+  ctx.font = '9px "Manrope", sans-serif'; ctx.textBaseline = 'middle';
   const model = state.model, maxError = model ? Math.ceil(model.errors[0] / 10) * 10 || 10 : 40;
   chartMax = Math.max(64, Math.ceil(state.n / 64) * 64);
   for (let i = 0; i <= 2; i++) {
     const y = top + (bottom - top) * i / 2;
-    line(ctx, left, y, right, y, '#eef2f2', 1, [2, 3]); ctx.fillStyle = '#a9b7be'; ctx.textAlign = 'right'; ctx.fillText(String(Math.round(maxError * (1 - i / 2))), left - 6, y);
+    line(ctx, left, y, right, y, '#edf0f6', 1); ctx.fillStyle = palette.muted; ctx.textAlign = 'right'; ctx.fillText(String(Math.round(maxError * (1 - i / 2))), left - 6, y);
   }
-  for (let i = 0; i <= 4; i++) { ctx.textAlign = 'center'; ctx.fillStyle = '#a9b7be'; ctx.fillText(String(chartMax * i / 4), left + (right - left) * i / 4, h - 6); }
+  for (let i = 0; i <= 4; i++) { ctx.textAlign = 'center'; ctx.fillStyle = palette.muted; ctx.fillText(String(chartMax * i / 4), left + (right - left) * i / 4, h - 6); }
   if (!model) return;
   const x = n => left + n / chartMax * (right - left), y = value => bottom - value / maxError * (bottom - top);
-  const gradient = ctx.createLinearGradient(0, top, 0, bottom); gradient.addColorStop(0, '#b9e5d780'); gradient.addColorStop(1, '#b9e5d708');
   ctx.beginPath(); ctx.moveTo(left, bottom);
   for (let n = 0; n <= chartMax; n++) ctx.lineTo(x(n), y(model.errors[n]));
-  ctx.lineTo(right, bottom); ctx.closePath(); ctx.fillStyle = gradient; ctx.fill();
+  ctx.lineTo(right, bottom); ctx.closePath(); ctx.fillStyle = '#385ee70d'; ctx.fill();
   ctx.beginPath(); for (let n = 0; n <= chartMax; n++) n ? ctx.lineTo(x(n), y(model.errors[n])) : ctx.moveTo(x(n), y(model.errors[n]));
-  ctx.strokeStyle = '#67b397'; ctx.lineWidth = 1.8; ctx.stroke();
-  line(ctx, x(state.n), top, x(state.n), bottom, '#7cbda780', 1, [3, 3]);
-  dot(ctx, x(state.n), y(model.errors[state.n]), 4, '#fff'); dot(ctx, x(state.n), y(model.errors[state.n]), 2.5, '#389b7b');
+  ctx.strokeStyle = palette.x; ctx.lineWidth = 1.8; ctx.stroke();
+  line(ctx, x(state.n), top, x(state.n), bottom, '#385ee747', 1, [3, 3]);
+  dot(ctx, x(state.n), y(model.errors[state.n]), 4, '#fff'); dot(ctx, x(state.n), y(model.errors[state.n]), 2.5, palette.x);
   errorChart.setAttribute('aria-label', `N 從 0 到 ${chartMax} 的誤差曲線。目前 N = ${state.n}，錯誤率 ${model.errors[state.n].toFixed(3)}%。`);
 }
 
 function renderAnimation() {
   const { ctx, width: w, height: h } = surfaces.get(animationCanvas) || surface(animationCanvas);
   ctx.clearRect(0, 0, w, h);
-  ctx.fillStyle = '#8ca5a313';
-  for (let x = 20; x < w; x += 22) for (let y = 20; y < h; y += 22) ctx.fillRect(x, y, 1, 1);
   if (!state.model) return;
-  const model = state.model, t = state.t * TAU;
+  const model = state.model, progress = Math.min(1, state.t), t = progress * TAU;
   const centerX = w * .68, centerY = h * .66, xDockY = h * .26, yDockX = w * .215;
   const maxRX = Math.max(1, state.rx), maxRY = Math.max(1, state.ry);
   const scale = Math.min(w * .22 / maxRX, h * .19 / maxRX, w * .17 / maxRY, h * .25 / maxRY, w * .24, h * .26);
   const reach = scale * 1.2;
-  line(ctx, centerX - reach, centerY, centerX + reach, centerY, '#789c9620', 1);
-  line(ctx, centerX, centerY - reach, centerX, centerY + reach, '#789c9620', 1);
-  ctx.font = '9px "DM Sans", sans-serif'; ctx.fillStyle = '#63847f70'; ctx.textAlign = 'left';
+  line(ctx, centerX - reach, centerY, centerX + reach, centerY, palette.axis, 1);
+  line(ctx, centerX, centerY - reach, centerX, centerY + reach, palette.axis, 1);
+  ctx.font = '10px "Manrope", sans-serif'; ctx.fillStyle = palette.muted; ctx.textAlign = 'left';
   ctx.fillText('x', centerX + reach + 5, centerY + 3); ctx.fillText('y', centerX - 3, centerY - reach - 7);
-  if (state.showOriginal) { ctx.setLineDash([3, 5]); path(ctx, model.samples, centerX, centerY, scale, '#b7cdce42', 1.25, model.samples.length, true); ctx.setLineDash([]); }
-  if (state.showOutline) path(ctx, state.reconstruction, centerX, centerY, scale, '#93bace40', 1.5);
+  if (state.showOriginal) { ctx.setLineDash([3, 5]); path(ctx, model.samples, centerX, centerY, scale, palette.original, 1.25, model.samples.length, true); ctx.setLineDash([]); }
+  if (state.showOutline) path(ctx, state.reconstruction, centerX, centerY, scale, palette.outline, 1.5);
   const point = evaluate(model, state.n, t);
   const endX = centerX + point.x * scale, endY = centerY - point.y * scale;
   if (state.showCircles) {
     let xx = centerX + model.cx * scale, xy = xDockY;
     let yx = yDockX, yy = centerY - model.cy * scale;
-    dot(ctx, xx, xy, 2.3, '#83c4ae'); dot(ctx, yx, yy, 2.3, '#c5b182');
+    dot(ctx, xx, xy, 2.3, palette.x); dot(ctx, yx, yy, 2.3, palette.y);
     for (const c of model.coefficients.slice(0, state.n)) {
       const angleX = c.k * t - c.phaseX, angleY = c.k * t - c.phaseY;
       const nextX = xx + c.rx * scale * Math.cos(angleX), nextXY = xy + c.rx * scale * Math.sin(angleX);
       const nextYX = yx + c.ry * scale * Math.sin(angleY), nextY = yy - c.ry * scale * Math.cos(angleY);
-      if (c.rx * scale > .35) { ctx.beginPath(); ctx.arc(xx, xy, c.rx * scale, 0, TAU); ctx.strokeStyle = '#79c5ab50'; ctx.lineWidth = .8; ctx.stroke(); line(ctx, xx, xy, nextX, nextXY, '#80cdb278', .9); }
-      if (c.ry * scale > .35) { ctx.beginPath(); ctx.arc(yx, yy, c.ry * scale, 0, TAU); ctx.strokeStyle = '#d1b87748'; ctx.lineWidth = .8; ctx.stroke(); line(ctx, yx, yy, nextYX, nextY, '#c9b47f73', .9); }
+      if (c.rx * scale > .35) { ctx.beginPath(); ctx.arc(xx, xy, c.rx * scale, 0, TAU); ctx.strokeStyle = palette.xCircle; ctx.lineWidth = 1.15; ctx.stroke(); line(ctx, xx, xy, nextX, nextXY, palette.xArm, 1.1); }
+      if (c.ry * scale > .35) { ctx.beginPath(); ctx.arc(yx, yy, c.ry * scale, 0, TAU); ctx.strokeStyle = palette.yCircle; ctx.lineWidth = 1.15; ctx.stroke(); line(ctx, yx, yy, nextYX, nextY, palette.yArm, 1.1); }
       xx = nextX; xy = nextXY; yx = nextYX; yy = nextY;
     }
-    line(ctx, xx, xy, endX, endY, '#8ac6ab60', 1, [3, 5]); line(ctx, yx, yy, endX, endY, '#d1b78160', 1, [3, 5]);
-    dot(ctx, xx, xy, 3, '#9dddc1'); dot(ctx, yx, yy, 3, '#dbc68e');
-    ctx.font = 'italic 12px Georgia'; ctx.textAlign = 'center'; ctx.fillStyle = '#75b49e'; ctx.fillText('x(t)', centerX, Math.max(57, xDockY - state.rx * scale - 16));
-    ctx.fillStyle = '#b6a574'; ctx.fillText('y(t)', yDockX, Math.min(h - 44, centerY + state.ry * scale + 24));
+    line(ctx, xx, xy, endX, endY, palette.xCircle, 1, [3, 5]); line(ctx, yx, yy, endX, endY, palette.yCircle, 1, [3, 5]);
+    dot(ctx, xx, xy, 3, palette.x); dot(ctx, yx, yy, 3, palette.y);
+    ctx.font = '600 11px "Manrope", sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = palette.x; ctx.fillText('x(t)', centerX, Math.max(20, xDockY - state.rx * scale - 14));
+    ctx.fillStyle = palette.y; ctx.fillText('y(t)', yDockX, Math.min(h - 44, centerY + state.ry * scale + 24));
   }
-  const traceCount = Math.floor(state.t * SAMPLE_COUNT) + 1;
-  ctx.shadowColor = '#a6ebd78c'; ctx.shadowBlur = 8;
-  path(ctx, state.reconstruction, centerX, centerY, scale, '#d7f4e6', 1.9, traceCount);
+  const traceCount = Math.floor(progress * SAMPLE_COUNT) + 1;
+  path(ctx, state.reconstruction, centerX, centerY, scale, palette.ink, 2.25, traceCount);
   const last = state.reconstruction[Math.min(traceCount - 1, SAMPLE_COUNT)];
-  line(ctx, centerX + last.x * scale, centerY - last.y * scale, endX, endY, '#d7f4e6', 1.9);
-  ctx.shadowBlur = 15; dot(ctx, endX, endY, 3.4, '#edfff5'); ctx.shadowBlur = 0;
+  line(ctx, centerX + last.x * scale, centerY - last.y * scale, endX, endY, palette.ink, 2.25);
+  dot(ctx, endX, endY, 5, '#fff'); dot(ctx, endX, endY, 3.4, palette.ink);
 }
 
 function updatePlayback() {
   $('playButton').setAttribute('aria-label', state.playing ? '暫停動畫' : '播放動畫');
+  $('playLabel').textContent = state.playing ? '暫停' : '播放';
   $('playButton').querySelector('use').setAttribute('href', state.playing ? '#i-pause' : '#i-play');
-  $('progressSlider').value = Math.round(state.t * 1000); $('progressLabel').textContent = `${Math.round(state.t * 100)}%`;
-  if (state.model) { const p = evaluate(state.model, state.n, state.t * TAU); $('coordinateReadout').textContent = `x ${p.x.toFixed(3)} · y ${p.y.toFixed(3)}`; }
+  const progress = Math.min(1, state.t);
+  $('progressSlider').value = Math.round(progress * 1000); $('progressLabel').textContent = `${Math.round(progress * 100)}%`;
+  if (state.model) { const p = evaluate(state.model, state.n, progress * TAU); $('coordinateReadout').textContent = `x ${formatCoefficient(p.x, 3)} · y ${formatCoefficient(p.y, 3)}`; }
 }
 
 function tick(time) {
@@ -243,7 +251,7 @@ $('closedToggle').addEventListener('change', event => { state.closed = event.tar
 for (const [id, key] of [['originalToggle', 'showOriginal'], ['circlesToggle', 'showCircles'], ['outlineToggle', 'showOutline']]) $(id).addEventListener('change', event => { state[key] = event.target.checked; renderAnimation(); });
 $('clearButton').addEventListener('click', () => {
   state.points = []; state.model = null; state.draft = []; state.example = null; state.t = 0;
-  document.querySelectorAll('[data-example]').forEach(button => button.classList.remove('active'));
+  document.querySelectorAll('[data-example]').forEach(button => { button.classList.remove('active'); button.setAttribute('aria-pressed', 'false'); });
   $('pointCount').textContent = '等待繪製'; updateFit(); renderDrawing(); save();
 });
 $('playButton').addEventListener('click', () => { state.playing = !state.playing; if (state.t >= 1) state.t = 0; updatePlayback(); });
@@ -277,6 +285,18 @@ document.addEventListener('keydown', event => {
   if (event.key.toLowerCase() === 'r') $('restartButton').click();
 });
 document.addEventListener('visibilitychange', () => { lastTime = 0; });
+function updateNavigation() {
+  const current = $('formulaPanel').getBoundingClientRect().top < window.innerHeight * .6 ? '#formulaPanel' : '#studio';
+  document.querySelectorAll('.header-nav a').forEach(link => {
+    const active = link.getAttribute('href') === current;
+    link.classList.toggle('nav-current', active);
+    if (active) link.setAttribute('aria-current', 'location'); else link.removeAttribute('aria-current');
+  });
+}
+window.addEventListener('hashchange', updateNavigation);
+window.addEventListener('scroll', updateNavigation, { passive: true });
+window.addEventListener('resize', updateNavigation);
+updateNavigation();
 const resizeObserver = new ResizeObserver(() => { surface(animationCanvas); renderDrawing(); renderChart(); renderAnimation(); });
 for (const canvas of [drawCanvas, animationCanvas, errorChart]) resizeObserver.observe(canvas);
 
