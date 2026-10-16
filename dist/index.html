@@ -21,6 +21,7 @@
     <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="13" rx="2"/><path d="M15 8V3H3v12h5" /></symbol>
     <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5" /></symbol>
     <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18M9 6V3h6v3M6 6l1 15h10l1-15M10 10v7M14 10v7" /></symbol>
+    <symbol id="i-image" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="m21 16-5-5-9 9" /></symbol>
   </defs></svg>
 
   <a class="skip-link" href="#drawingPanel">跳到手繪畫布</a>
@@ -50,14 +51,31 @@
       <aside class="control-panel" aria-label="繪圖與參數">
         <section class="drawing-panel" id="drawingPanel">
           <div class="section-heading"><h2>先畫一筆</h2><button id="clearButton" class="icon-button clear-button" title="清除畫布" aria-label="清除畫布"><svg><use href="#i-trash"/></svg><span>重畫</span></button></div>
-          <p class="drawing-instruction">按住拖曳，放開就能看見公式。</p>
-          <div class="draw-surface"><canvas id="drawCanvas" aria-label="手繪畫布，按住滑鼠或手指畫出一條路徑"></canvas><div class="draw-prompt" id="drawPrompt" hidden><svg><use href="#i-pencil"/></svg><strong>隨意畫，不用完美。</strong><span>滑鼠、觸控筆、手指都可以</span></div><span class="canvas-note" id="pointCount">1,024 個取樣點</span><span class="draw-corner" aria-hidden="true"><svg><use href="#i-pencil"/></svg></span></div>
+          <p class="drawing-instruction">按住拖曳，放開就能看見公式。也可以把圖片拖進來。</p>
+          <div class="draw-surface" id="drawSurface"><canvas id="drawCanvas" aria-label="手繪畫布，按住滑鼠或手指畫出一條路徑，也可以拖放圖片"></canvas><div class="draw-prompt" id="drawPrompt" hidden><svg><use href="#i-pencil"/></svg><strong>隨意畫，不用完美。</strong><span>滑鼠、觸控筆、手指都可以，也能拖入圖片</span></div><div class="drop-hint" aria-hidden="true"><svg><use href="#i-image"/></svg><strong>放開，描出圖片輪廓</strong></div><span class="canvas-note" id="pointCount">1,024 個取樣點</span><span class="draw-corner" aria-hidden="true"><svg><use href="#i-pencil"/></svg></span></div>
+          <button id="imageButton" class="image-button"><svg><use href="#i-image"/></svg><span>從圖片描出輪廓</span><small>拖放、貼上或選擇圖片</small></button>
+          <input id="imageInput" type="file" accept="image/*" hidden />
+          <div class="image-controls" id="imageControls" hidden>
+            <div class="mode-row" role="group" aria-label="描邊方式"><button data-mode="outline" class="active" aria-pressed="true">外輪廓</button><button data-mode="all" aria-pressed="false">全部線條<span class="badge">實驗</span></button></div>
+            <label class="threshold-line" for="thresholdSlider"><span>明暗門檻</span><output id="thresholdValue" for="thresholdSlider">50</output></label>
+            <input id="thresholdSlider" type="range" min="1" max="99" step="1" value="50" aria-describedby="imageHint" />
+            <div class="image-options"><label class="checkbox-line"><input type="checkbox" id="invertToggle" /><span>反轉主體與背景</span></label><button id="autoThresholdButton" class="link-button">自動門檻</button></div>
+            <p class="hint" id="imageHint">外輪廓只保留最大主體的外框。全部線條會把每條輪廓接成一筆，輪廓之間會出現直線。</p>
+          </div>
           <div class="example-row" aria-label="範例形狀">
             <button data-example="heart" class="example active"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20 3.8 12a5.2 5.2 0 0 1 8.2-6.3A5.2 5.2 0 0 1 20.2 12Z"/></svg>愛心</button>
             <button data-example="star" class="example"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 2 3.1 6.3 6.9 1-5 4.9 1.2 6.8-6.2-3.2-6.2 3.2 1.2-6.8-5-4.9 6.9-1Z"/></svg>星形</button>
             <button data-example="flower" class="example"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8c-6-10-13 1-5 4-8 3-1 14 5 4 6 10 13-1 5-4 8-3 1-14-5-4Z"/></svg>花瓣</button>
+            <button data-example="cat" class="example"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.8 2.6L8.8 4.5L10.2 4.7L12.7 2.5L13.6 8.0L12.5 10.6L14.4 12.8L15.2 15.1L14.4 18.7L16.8 18.1L18.1 16.5L18.1 14.5L16.7 12.4L17.0 11.6L18.8 12.8L19.7 15.6L18.0 18.9L13.3 20.1L13.1 21.3L6.1 21.0L6.4 20.0L4.8 17.9L4.3 15.4L5.0 13.0L7.0 10.6L5.9 8.0L6.8 2.6Z"/></svg>貓咪</button>
+            <button data-example="rabbit" class="example"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5.5 2.5L7.6 5.4L8.8 3.2L9.6 3.1L9.2 8.4L11.3 11.0L15.4 11.6L19.7 14.3L19.8 15.7L16.9 19.8L18.1 20.5L17.5 21.1L13.6 21.5L6.2 20.5L8.4 19.3L7.2 17.2L7.0 14.6L4.9 13.4L4.1 12.0L4.4 10.3L5.9 8.7L4.9 4.7L5.4 2.5Z"/></svg>兔子</button>
+            <button data-example="butterfly" class="example"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.7 2.8L12.0 7.0L14.7 2.9L15.5 2.9L13.2 5.9L13.0 7.9L17.9 5.8L20.0 6.2L21.3 7.5L21.4 9.4L20.5 11.4L16.3 14.4L17.9 18.2L16.5 21.0L14.7 21.2L12.7 20.0L11.9 21.0L11.3 20.0L8.3 21.2L6.4 19.8L6.3 17.2L7.7 14.4L3.8 11.8L2.5 8.3L3.5 6.5L5.7 5.8L8.3 6.3L11.1 7.9L11.0 6.1L8.5 3.5L8.7 2.8Z"/></svg>蝴蝶</button>
+            <button data-example="note" class="example"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.1 2.6L20.5 16.4L19.9 17.9L16.5 19.6L14.9 19.1L14.3 17.9L16.1 15.4L19.6 15.0L19.5 6.0L9.8 7.6L9.6 18.4L8.5 20.4L6.2 21.5L4.1 21.1L3.5 19.5L5.4 17.2L8.7 16.9L8.7 4.4L20.0 2.6Z"/></svg>音符</button>
+            <button data-example="taiwan" class="example"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16.5 4.4L13.9 14.5L11.6 18.0L11.0 21.5L10.3 21.3L9.9 19.3L8.2 17.7L7.6 15.2L7.0 15.1L7.6 11.1L12.1 3.8L14.1 3.3L14.6 2.5L16.5 3.5L16.6 4.3Z"/></svg>台灣</button>
           </div>
-          <label class="checkbox-line"><input type="checkbox" id="closedToggle" checked /><span>連接起點與終點</span><span class="info-dot" title="關閉後沿原路往返，適合開放曲線。">?</span></label>
+          <div class="option-list">
+            <label class="checkbox-line"><input type="checkbox" id="closedToggle" checked /><span>連接起點與終點</span><span class="info-dot" title="關閉後沿原路往返，適合開放曲線。">?</span></label>
+            <label class="checkbox-line"><input type="checkbox" id="smoothToggle" checked /><span>平滑手繪筆跡</span><span class="info-dot" title="去除滑鼠與手指的抖動，起點與終點保持不動。只套用在手繪，範例與圖片不受影響。">?</span></label>
+          </div>
         </section>
         <section class="parameter-panel">
           <div class="n-heading"><div><h2>調整細節</h2><label for="nInput">諧波階數 <i>N</i></label></div><div class="n-input-wrap"><input id="nInput" type="number" min="0" max="256" step="1" value="12" aria-describedby="nHint" /><span>階</span></div></div>
@@ -78,7 +96,7 @@
           <canvas id="errorChart" aria-label="N 階數與正規化均方根誤差的曲線圖，點擊可選取 N" role="img"></canvas>
           <p class="chart-note">點擊曲線切換 N。誤差為 NRMSE，相對於形狀外框對角線。</p>
         </section>
-        <p class="privacy-note">筆跡留在這裡。所有計算都在你的瀏覽器內完成。</p>
+        <p class="privacy-note">筆跡和圖片都留在這裡。所有計算都在你的瀏覽器內完成。</p>
       </aside>
     </div>
     <section class="formula-panel" id="formulaPanel">
@@ -90,7 +108,7 @@
   </main>
   <noscript><p class="noscript-note">Trace Lab 需要 JavaScript 才能計算與繪圖。請啟用 JavaScript 後重新載入。</p></noscript>
   <div class="toast" id="toast" role="status" hidden></div>
-  <dialog id="helpDialog"><div class="dialog-heading"><h2>圓，怎麼畫出任意形狀？</h2><button class="icon-button" id="closeHelp" aria-label="關閉說明">×</button></div><p>先把你的筆跡切成 1,024 個等距取樣點，再對 X、Y 座標分別計算離散傅立葉係數。</p><ol><li><strong>畫下形狀：</strong>按住並拖曳，放開後自動計算。新的一筆會取代原路徑。</li><li><strong>選擇 N：</strong>保留第 1 到 N 階諧波，N = 0 只保留平均位置。每軸有 2N + 1 個純量係數。</li><li><strong>看圓轉動：</strong>第 k 階以 k 倍速度旋轉，半徑為 √(aₖ² + bₖ²)。X 鏈取水平投影、Y 鏈取垂直投影，交點就是重建座標。</li></ol><div class="help-math">錯誤率 = 100 × √mean[(x − x̂)² + (y − ŷ)²] ÷ 外框對角線</div><p>誤差比較的是同一參數位置的 1,024 個取樣點，並不是面積或辨識正確率。增加 N 不會增加取樣誤差；最高 256 階仍可能保留些微誤差。</p><p>勾選「自動連接」時，末點會以直線接回起點。關閉後沿原路往返，適合未封閉的線條。所有圖形運算都在瀏覽器內完成。</p><p class="hint">快捷鍵：空白鍵播放／暫停；R 重新播放。手機也可以用手指畫圖。</p></dialog>
+  <dialog id="helpDialog"><div class="dialog-heading"><h2>圓，怎麼畫出任意形狀？</h2><button class="icon-button" id="closeHelp" aria-label="關閉說明">×</button></div><p>先把你的筆跡切成 1,024 個等距取樣點，再對 X、Y 座標分別計算離散傅立葉係數。</p><ol><li><strong>畫下形狀：</strong>按住並拖曳，放開後自動計算。新的一筆會取代原路徑。「平滑手繪筆跡」會先去除抖動再取樣。</li><li><strong>或從圖片開始：</strong>拖放、貼上或選擇一張圖片，會自動找出主體的外輪廓。主體與背景對比越高，效果越好；可用門檻與反轉微調。</li><li><strong>選擇 N：</strong>保留第 1 到 N 階諧波，N = 0 只保留平均位置。每軸有 2N + 1 個純量係數。</li><li><strong>看圓轉動：</strong>第 k 階以 k 倍速度旋轉，半徑為 √(aₖ² + bₖ²)。X 鏈取水平投影、Y 鏈取垂直投影，交點就是重建座標。</li></ol><div class="help-math">錯誤率 = 100 × √mean[(x − x̂)² + (y − ŷ)²] ÷ 外框對角線</div><p>誤差比較的是同一參數位置的 1,024 個取樣點，並不是面積或辨識正確率。增加 N 不會增加取樣誤差；最高 256 階仍可能保留些微誤差。</p><p>勾選「自動連接」時，末點會以直線接回起點。關閉後沿原路往返，適合未封閉的線條。所有圖形與圖片運算都在瀏覽器內完成，圖片不會上傳，也不會被儲存。</p><p class="hint">快捷鍵：空白鍵播放／暫停；R 重新播放。手機也可以用手指畫圖。</p></dialog>
   <script type="module" src="./app.js"></script>
 </body>
 </html>

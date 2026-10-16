@@ -1,4 +1,6 @@
-import { TAU, MAX_N, SAMPLE_COUNT, analyzePath, normalizePath, reconstruct, evaluate, examplePath, formulaText } from './fourier.js';
+import { TAU, MAX_N, SAMPLE_COUNT, analyzePath, normalizePath, pathBounds, smoothPath, reconstruct, evaluate, examplePath, formulaText } from './fourier.js';
+import { loadImage, prepareImage, traceImage } from './edge.js';
+import { SHAPES, shapePath } from './shapes.js';
 
 const $ = id => document.getElementById(id);
 const drawCanvas = $('drawCanvas'), animationCanvas = $('animationCanvas'), errorChart = $('errorChart');
@@ -11,8 +13,10 @@ const palette = {
   xCircle: token('--x') + '90', yCircle: token('--y') + '9e',
   xArm: token('--x') + 'ba', yArm: token('--y') + 'ba',
 };
-const state = { model: null, points: [], draft: [], drawing: false, pointerId: null, n: 12, t: 0, playing: !matchMedia('(prefers-reduced-motion: reduce)').matches, speed: 1, reconstruction: [], example: 'heart', showOriginal: true, showCircles: true, showOutline: true, closed: true };
-let toastTimer, lastTime = 0, uiTime = 0, chartMax = 64, nTimer;
+// points: the source path as given (normalized); shape: what is analysed (points, smoothed for hand drawing).
+// source: 'draw' | 'example' | 'image'; image: the decoded picture while it is the current source.
+const state = { model: null, points: [], shape: [], source: 'example', smooth: true, image: null, draft: [], drawing: false, pointerId: null, n: 12, t: 0, playing: !matchMedia('(prefers-reduced-motion: reduce)').matches, speed: 1, reconstruction: [], example: 'heart', showOriginal: true, showCircles: true, showOutline: true, closed: true };
+let toastTimer, lastTime = 0, uiTime = 0, chartMax = 64, nTimer, traceFrame = 0, dragDepth = 0, imageTicket = 0;
 
 function notify(message) {
   clearTimeout(toastTimer); $('toast').textContent = message; $('toast').hidden = false;
@@ -47,7 +51,11 @@ function dot(ctx, x, y, radius, color) { ctx.beginPath(); ctx.arc(x, y, radius, 
 function renderDrawing() {
   const { ctx, width: w, height: h } = surface(drawCanvas), scale = Math.min(w, h) * .37;
   ctx.clearRect(0, 0, w, h);
-  const points = state.drawing ? state.draft : state.points;
+  const points = state.drawing ? state.draft : state.shape;
+  if (!state.drawing && state.source === 'image' && state.image?.frame) {
+    const frame = state.image.frame;
+    ctx.globalAlpha = .22; ctx.drawImage(state.image.canvas, w / 2 + frame.x * scale, h / 2 - frame.y * scale, frame.width * scale, frame.height * scale); ctx.globalAlpha = 1;
+  }
   if (points.length) {
     path(ctx, points, w / 2, h / 2, scale, palette.ink, 2.8);
     if (!state.drawing && state.closed) {
@@ -60,20 +68,71 @@ function renderDrawing() {
 }
 
 function save() {
-  try { localStorage.setItem('trace-lab-v1', JSON.stringify({ points: state.points, n: state.n, closed: state.closed, example: state.example })); } catch { /* Storage is optional. */ }
+  try { localStorage.setItem('trace-lab-v1', JSON.stringify({ points: state.points, n: state.n, closed: state.closed, example: state.example, source: state.source, smooth: state.smooth })); } catch { /* Storage is optional. */ }
 }
 
-function fit(points, example = null) {
+/** Analyses a new source path. Returns false (and keeps the previous result) when it cannot be fitted. */
+function fit(points, { source = 'draw', example = null } = {}) {
   try {
-    const normalized = normalizePath(points), model = analyzePath(normalized, { closed: state.closed });
-    state.points = normalized; state.model = model; state.example = example; state.t = 0;
-    updateFit(); renderDrawing(); save();
+    const normalized = normalizePath(points), shape = source === 'draw' && state.smooth ? smoothPath(normalized) : normalized;
+    const model = analyzePath(shape, { closed: state.closed });
+    Object.assign(state, { points: normalized, shape, model, source, example, t: 0 });
+    if (source !== 'image') state.image = null;
+    updateFit(); renderDrawing(); save(); syncImageControls();
     $('pointCount').textContent = '1,024 個取樣點';
     document.querySelectorAll('[data-example]').forEach(button => {
       const active = button.dataset.example === example;
       button.classList.toggle('active', active); button.setAttribute('aria-pressed', active);
     });
-  } catch (error) { notify(error.message); renderDrawing(); }
+    return true;
+  } catch (error) { notify(error.message); renderDrawing(); return false; }
+}
+
+const examplePoints = kind => SHAPES[kind] ? shapePath(kind) : examplePath(kind);
+
+function syncImageControls() {
+  const image = state.source === 'image' ? state.image : null;
+  $('imageControls').hidden = !image;
+  if (!image) return;
+  $('thresholdSlider').value = Math.round(image.threshold * 100); $('thresholdValue').textContent = Math.round(image.threshold * 100);
+  $('invertToggle').checked = image.invert;
+  document.querySelectorAll('[data-mode]').forEach(button => {
+    const active = button.dataset.mode === image.mode;
+    button.classList.toggle('active', active); button.setAttribute('aria-pressed', active);
+  });
+}
+
+/** Re-traces the current image with its threshold, inversion and mode. */
+function traceCurrentImage() {
+  const image = state.image;
+  try {
+    const { points } = traceImage(image.prepared, image), bounds = pathBounds(points), previous = image.frame;
+    // Where the whole picture sits in the normalized coordinates of its contour (y up, top-left corner).
+    image.frame = { x: -bounds.cx / bounds.scale, y: -bounds.cy / bounds.scale, width: image.prepared.width / bounds.scale, height: image.prepared.height / bounds.scale };
+    if (fit(points, { source: 'image' })) return true;
+    image.frame = previous; renderDrawing(); return false;
+  } catch (error) { notify(error.message); return false; }
+}
+
+function scheduleTrace() {
+  cancelAnimationFrame(traceFrame);
+  traceFrame = requestAnimationFrame(() => { if (state.image) { traceCurrentImage(); syncImageControls(); } });
+}
+
+async function openImage(file) {
+  if (!file) return;
+  if (!file.type.startsWith('image/')) { notify('請選擇圖片檔，例如 PNG、JPG 或 WebP。'); return; }
+  if (file.size > 30 * 1024 * 1024) { notify('圖片超過 30 MB，請換一張較小的圖片。'); return; }
+  const ticket = ++imageTicket;
+  try {
+    const { canvas, imageData } = await loadImage(file);
+    if (ticket !== imageTicket) return; // A newer image arrived while this one was decoding.
+    const prepared = prepareImage(imageData), previous = state.image;
+    state.image = { canvas, prepared, threshold: prepared.threshold, invert: false, mode: 'outline', frame: null };
+    if (traceCurrentImage()) notify(prepared.usesAlpha ? '已依透明背景描出輪廓。' : '已描出圖片輪廓。不理想時可調整門檻或反轉。');
+    else state.image = previous;
+  } catch (error) { notify(error.message || '無法讀取這張圖片，請改用 PNG、JPG 或 WebP。'); }
+  syncImageControls(); renderDrawing();
 }
 
 function formatError(value) { return value < .001 && value > 1e-8 ? '<0.001' : value.toFixed(3); }
@@ -237,23 +296,41 @@ drawCanvas.addEventListener('pointerup', event => {
   state.drawing = false; state.pointerId = null;
   if (drawCanvas.hasPointerCapture(event.pointerId)) drawCanvas.releasePointerCapture(event.pointerId);
   if (state.draft.length < 4) { notify('請按住滑鼠拖曳，畫出一段線條。'); renderDrawing(); return; }
-  fit(state.draft); state.draft = [];
+  fit(state.draft, { source: 'draw' }); state.draft = [];
 });
 function cancelDrawing() { if (state.drawing) { state.drawing = false; state.pointerId = null; state.draft = []; renderDrawing(); } }
 drawCanvas.addEventListener('pointercancel', cancelDrawing); drawCanvas.addEventListener('lostpointercapture', cancelDrawing);
 
-document.querySelectorAll('[data-example]').forEach(button => button.addEventListener('click', () => { fit(examplePath(button.dataset.example), button.dataset.example); }));
+document.querySelectorAll('[data-example]').forEach(button => button.addEventListener('click', () => { fit(examplePoints(button.dataset.example), { source: 'example', example: button.dataset.example }); }));
 document.querySelectorAll('[data-n]').forEach(button => button.addEventListener('click', () => setN(Number(button.dataset.n))));
 $('nInput').addEventListener('input', event => { clearTimeout(nTimer); if (event.target.value !== '') nTimer = setTimeout(() => setN(Number(event.target.value), true), 250); });
 $('nInput').addEventListener('change', event => { clearTimeout(nTimer); setN(event.target.value === '' ? NaN : Number(event.target.value), true); });
 $('nInput').addEventListener('keydown', event => { if (event.key === 'Enter') { clearTimeout(nTimer); setN(event.target.value === '' ? NaN : Number(event.target.value), true); } });
 $('nSlider').addEventListener('input', event => { clearTimeout(nTimer); setN(Number(event.target.value)); });
-$('closedToggle').addEventListener('change', event => { state.closed = event.target.checked; if (state.points.length) fit(state.points, state.example); else save(); });
+$('closedToggle').addEventListener('change', event => { state.closed = event.target.checked; if (state.points.length) fit(state.points, { source: state.source, example: state.example }); else save(); });
+$('smoothToggle').addEventListener('change', event => { state.smooth = event.target.checked; if (state.points.length && state.source === 'draw') fit(state.points, { source: 'draw' }); else save(); });
+$('imageButton').addEventListener('click', () => $('imageInput').click());
+$('imageInput').addEventListener('change', event => { openImage(event.target.files[0]); event.target.value = ''; });
+$('thresholdSlider').addEventListener('input', event => { if (!state.image) return; state.image.threshold = Number(event.target.value) / 100; $('thresholdValue').textContent = event.target.value; scheduleTrace(); });
+$('invertToggle').addEventListener('change', event => { if (!state.image) return; state.image.invert = event.target.checked; scheduleTrace(); });
+$('autoThresholdButton').addEventListener('click', () => { if (!state.image) return; state.image.threshold = state.image.prepared.threshold; syncImageControls(); scheduleTrace(); });
+document.querySelectorAll('[data-mode]').forEach(button => button.addEventListener('click', () => { if (!state.image) return; state.image.mode = button.dataset.mode; syncImageControls(); scheduleTrace(); }));
+const imageFile = files => [...(files || [])].find(file => file.type.startsWith('image/')) || files?.[0];
+const draggingFiles = event => [...(event.dataTransfer?.types || [])].includes('Files');
+const setDropTarget = active => $('drawSurface').classList.toggle('dragging', active);
+window.addEventListener('dragenter', event => { if (!draggingFiles(event)) return; event.preventDefault(); dragDepth++; setDropTarget(true); });
+window.addEventListener('dragover', event => { if (!draggingFiles(event)) return; event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; });
+window.addEventListener('dragleave', event => { if (!draggingFiles(event)) return; dragDepth = Math.max(0, dragDepth - 1); if (!dragDepth) setDropTarget(false); });
+window.addEventListener('drop', event => { if (!draggingFiles(event)) return; event.preventDefault(); dragDepth = 0; setDropTarget(false); openImage(imageFile(event.dataTransfer.files)); });
+document.addEventListener('paste', event => {
+  const file = [...(event.clipboardData?.files || [])].find(item => item.type.startsWith('image/'));
+  if (file) { event.preventDefault(); openImage(file); }
+});
 for (const [id, key] of [['originalToggle', 'showOriginal'], ['circlesToggle', 'showCircles'], ['outlineToggle', 'showOutline']]) $(id).addEventListener('change', event => { state[key] = event.target.checked; renderAnimation(); });
 $('clearButton').addEventListener('click', () => {
-  state.points = []; state.model = null; state.draft = []; state.example = null; state.t = 0;
+  Object.assign(state, { points: [], shape: [], model: null, draft: [], example: null, source: 'draw', image: null, t: 0 });
   document.querySelectorAll('[data-example]').forEach(button => { button.classList.remove('active'); button.setAttribute('aria-pressed', 'false'); });
-  $('pointCount').textContent = '等待繪製'; updateFit(); renderDrawing(); save();
+  $('pointCount').textContent = '等待繪製'; updateFit(); renderDrawing(); save(); syncImageControls();
 });
 $('playButton').addEventListener('click', () => { state.playing = !state.playing; if (state.t >= 1) state.t = 0; updatePlayback(); });
 $('restartButton').addEventListener('click', () => { state.t = 0; state.playing = true; renderAnimation(); updatePlayback(); });
@@ -306,9 +383,12 @@ try {
   const saved = JSON.parse(localStorage.getItem('trace-lab-v1'));
   if (saved && Array.isArray(saved.points) && saved.points.length <= 12000 && Number.isInteger(saved.n) && saved.n >= 0 && saved.n <= MAX_N && saved.points.every(p => p && Number.isFinite(p.x) && Number.isFinite(p.y))) {
     state.n = saved.n; state.closed = saved.closed !== false; $('closedToggle').checked = state.closed;
-    if (saved.points.length > 1) fit(saved.points, saved.example); else { updateFit(); renderDrawing(); }
+    state.smooth = saved.smooth !== false; $('smoothToggle').checked = state.smooth;
+    // Saves from before image support have no source: an example name means an example, otherwise a drawing.
+    const source = ['draw', 'example', 'image'].includes(saved.source) ? saved.source : saved.example ? 'example' : 'draw';
+    if (saved.points.length > 1) fit(saved.points, { source, example: typeof saved.example === 'string' ? saved.example : null }); else { updateFit(); renderDrawing(); }
     restored = true;
   }
 } catch { /* Ignore unavailable storage or invalid saved data. */ }
-if (!restored) fit(examplePath('heart'), 'heart');
+if (!restored) fit(examplePath('heart'), { source: 'example', example: 'heart' });
 requestAnimationFrame(tick);

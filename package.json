@@ -3,5 +3,5 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "scripts": { "start": "node server.mjs", "test": "node --test tests/*.test.mjs", "check": "node --check dist/app.js && node --check dist/fourier.js && node --check server.mjs" }
+  "scripts": { "start": "node server.mjs", "test": "node --test tests/*.test.mjs", "check": "node --check dist/app.js && node --check dist/fourier.js && node --check dist/edge.js && node --check dist/shapes.js && node --check server.mjs && node --check tools/build-shapes.mjs", "shapes": "node tools/build-shapes.mjs" }
 }

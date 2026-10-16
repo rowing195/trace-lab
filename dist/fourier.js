@@ -20,12 +20,44 @@ export function resamplePath(points, count = SAMPLE_COUNT, closed = true) {
   });
 }
 
+/** Bounding-box centre and half of the longest side. */
+export function pathBounds(points) {
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (const p of points) { minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x); minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y); }
+  return { cx: (maxX + minX) / 2, cy: (maxY + minY) / 2, scale: Math.max(maxX - minX, maxY - minY) / 2 };
+}
+
 export function normalizePath(points) {
-  const xs = points.map(p => p.x), ys = points.map(p => p.y);
-  const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
-  const scale = Math.max(maxX - minX, maxY - minY) / 2;
-  if (scale < 1e-8) throw new Error('線條太短了，請再畫大一點。');
-  return points.map(p => ({ x: (p.x - (maxX + minX) / 2) / scale, y: (p.y - (maxY + minY) / 2) / scale }));
+  const { cx, cy, scale } = pathBounds(points);
+  if (!(scale >= 1e-8)) throw new Error('線條太短了，請再畫大一點。');
+  return points.map(p => ({ x: (p.x - cx) / scale, y: (p.y - cy) / scale }));
+}
+
+/**
+ * Removes pointer jitter from a hand-drawn open stroke: equal arc-length resampling, then a Gaussian
+ * whose width is `strength` × half the longest side. The window shrinks symmetrically near the ends,
+ * so both endpoints stay exactly where they were drawn.
+ */
+export function smoothPath(points, strength = 0.05) {
+  const lengths = [0];
+  for (let i = 1; i < points.length; i++) lengths.push(lengths[i - 1] + Math.hypot(points[i].x - points[i - 1].x, points[i].y - points[i - 1].y));
+  const total = lengths.at(-1), sigma = strength * pathBounds(points).scale;
+  if (!(total > 0) || !(sigma > 0)) return points.slice();
+  const count = Math.max(2, Math.min(4000, Math.ceil(total / (sigma / 3)) + 1)), step = total / (count - 1);
+  let segment = 1;
+  const even = Array.from({ length: count }, (_, i) => {
+    const distance = Math.min(total, i * step);
+    while (segment < lengths.length - 1 && lengths[segment] < distance) segment++;
+    const weight = (distance - lengths[segment - 1]) / (lengths[segment] - lengths[segment - 1] || 1);
+    return { x: points[segment - 1].x * (1 - weight) + points[segment].x * weight, y: points[segment - 1].y * (1 - weight) + points[segment].y * weight };
+  });
+  const radius = Math.ceil(3 * sigma / step), kernel = Array.from({ length: radius + 1 }, (_, j) => Math.exp(-((j * step) ** 2) / (2 * sigma * sigma)));
+  return even.map((_, i) => {
+    const reach = Math.min(radius, i, count - 1 - i);
+    let x = even[i].x * kernel[0], y = even[i].y * kernel[0], sum = kernel[0];
+    for (let j = 1; j <= reach; j++) { x += (even[i - j].x + even[i + j].x) * kernel[j]; y += (even[i - j].y + even[i + j].y) * kernel[j]; sum += 2 * kernel[j]; }
+    return { x: x / sum, y: y / sum };
+  });
 }
 
 export function analyzePath(points, { closed = true, count = SAMPLE_COUNT, maxN = MAX_N } = {}) {
