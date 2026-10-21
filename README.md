@@ -12,6 +12,12 @@ npm start
 
 開啟 http://127.0.0.1:4173 。可使用 `PORT` 環境變數調整埠號。靜態檔案皆位於 `dist/`，亦可部署至任意靜態網站主機。字型無法連線時會使用系統字型。
 
+## 部署
+
+推送到 `main` 時，GitHub Actions（`.github/workflows/pages.yml`）會先執行 `npm test` 與 `npm run check`，通過後才把 `dist/` 發布到 GitHub Pages：<https://rowing195.github.io/trace-lab/>。也可以在 Actions 頁面手動執行「Deploy to GitHub Pages」。
+
+第一次使用前，需在 repo 的 Settings → Pages 把 Source 設為「GitHub Actions」。
+
 ## 操作
 
 - 在「先畫一筆」區按住滑鼠畫一筆，新的一筆會取代舊路徑。「平滑手繪筆跡」（預設開啟）會先去除滑鼠與手指的抖動，起點與終點不動。
