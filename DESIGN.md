@@ -61,3 +61,17 @@ Motivation: mouse strokes rarely look good, which weakens the page as a demonstr
 - **Examples** become a 4 × 2 grid. The five new icons are the shapes' own outlines at 24 px, so the button previews what will be drawn. On phones the icon stacks above the label.
 
 Verified in Chromium at 1440, 768 and 390 px: no horizontal overflow; file picker, synthetic drag-and-drop (drop highlight shown) and clipboard paste; photo, emoji-style clip art, transparent PNG with a white subject, letter with holes in all-lines mode; threshold, invert, auto threshold and mode switching; non-image and corrupt-image errors; reload restores the traced outline without image controls; Space shortcut unaffected. On a 1600 × 1200 JPEG, decode + trace + fit takes roughly 0.1 s. Browser console reports no errors. `npm test`: 16 tests pass; `npm run check` passes.
+
+## Copy revision: plain, specific wording
+
+The first round's slogans (「你的線條，圓來完成。」, 「形狀背後的公式」, 「從一筆線條，走進傅立葉的世界。」) and reassuring second-person lines (「隨意畫，不用完美。」, 「等你畫下第一筆」) read as generic AI copy: they carry no information and would fit any product. They are replaced, and the "Claims and copy" headings above are superseded.
+
+Rules now applied to all interface text:
+
+- Headings are nouns that name the section's content: 路徑, 階數 N, 誤差, 公式, 運作方式.
+- Numbers instead of adjectives. The error panel no longer says 「與原始線條非常接近」; it states the smallest N that brings the current shape under 1% and 0.1% NRMSE (e.g. heart: N ≥ 6 and N ≥ 27), computed from the error curve.
+- Each fact is said once. The draw/adjust/watch instruction appeared four times; it now appears once, beside the canvas.
+- One term per concept: 誤差 (never 錯誤率), and the help text uses the checkbox's real name 「連接起點與終點」.
+- No sentence that would still be true of a different product. The footer slogan is removed; 「怎麼運作 ↗」 became 「說明」 because the arrow implied an external link.
+
+The page title is just "Trace Lab". The header logo is now the page's only h1, so the large stage headline is gone; the stage opens with one factual line (x(t)、y(t) 各是一個傅立葉級數，第 k 項是一個以 k 倍速旋轉的圓。) and the animation gains that height (clamp(380px, 40vw, 600px)), keeping playback above the fold at 1440 × 900.

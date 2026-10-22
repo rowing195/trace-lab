@@ -135,6 +135,12 @@ async function openImage(file) {
   syncImageControls(); renderDrawing();
 }
 
+/** The smallest N that brings this shape under 1% and 0.1% error. */
+function errorThresholds(model) {
+  const reach = limit => { const n = model.errors.findIndex(e => e < limit); return n < 0 ? `N ≤ ${model.maxN} 達不到` : `需 N ≥ ${n}`; };
+  return `低於 1% ${reach(1)} · 低於 0.1% ${reach(.1)}`;
+}
+
 function formatError(value) { return value < .001 && value > 1e-8 ? '<0.001' : value.toFixed(3); }
 function formatCoefficient(value, digits = 6) { return (Math.abs(value) < .5 * 10 ** -digits ? 0 : value).toFixed(digits); }
 
@@ -149,16 +155,16 @@ function updateFit() {
   $('emptyOverlay').hidden = !!model;
   for (const id of ['playButton', 'restartButton', 'progressSlider', 'copyButton', 'downloadButton']) $(id).disabled = !model;
   if (!model) {
-    state.reconstruction = []; $('errorValue').textContent = '—'; $('stageError').textContent = '待繪製'; $('errorDescription').textContent = '等待你的第一筆';
+    state.reconstruction = []; $('errorValue').textContent = '—'; $('stageError').textContent = '—'; $('errorDescription').textContent = '—';
     $('coefficientBody').replaceChildren(); $('coefficientCount').textContent = '尚無係數'; $('constantTerms').textContent = '—';
     $('formulaX').textContent = 'x(t) = cₓ + Σ [aₖ cos(kt) + bₖ sin(kt)]'; $('formulaY').textContent = 'y(t) = cᵧ + Σ [cₖ cos(kt) + dₖ sin(kt)]';
-    $('chartSelection').textContent = '等待繪製'; $('coordinateReadout').textContent = 'x — · y —';
+    $('chartSelection').textContent = '—'; $('coordinateReadout').textContent = 'x — · y —';
   } else {
     state.reconstruction = reconstruct(model, n);
     state.rx = model.coefficients.slice(0, n).reduce((sum, c) => sum + c.rx, 0);
     state.ry = model.coefficients.slice(0, n).reduce((sum, c) => sum + c.ry, 0);
     const error = model.errors[n]; $('errorValue').textContent = formatError(error); $('stageError').textContent = `${formatError(error)}%`;
-    $('errorDescription').textContent = error < 1 ? '與原始線條非常接近' : error < 5 ? '已保留主要形狀' : '增加 N，找回更多細節';
+    $('errorDescription').textContent = errorThresholds(model);
     $('formulaX').textContent = `x(t) = ${formatCoefficient(model.cx, 4)} + Σₖ₌₁…${n} [aₖ cos(kt) + bₖ sin(kt)]`;
     $('formulaY').textContent = `y(t) = ${formatCoefficient(model.cy, 4)} + Σₖ₌₁…${n} [cₖ cos(kt) + dₖ sin(kt)]`;
     if (n === 0) { $('formulaX').textContent = `x(t) = ${formatCoefficient(model.cx)}`; $('formulaY').textContent = `y(t) = ${formatCoefficient(model.cy)}`; }
@@ -208,7 +214,7 @@ function renderChart() {
   ctx.strokeStyle = palette.x; ctx.lineWidth = 1.8; ctx.stroke();
   line(ctx, x(state.n), top, x(state.n), bottom, palette.xCircle, 1, [3, 3]);
   dot(ctx, x(state.n), y(model.errors[state.n]), 4, '#fff'); dot(ctx, x(state.n), y(model.errors[state.n]), 2.5, palette.x);
-  errorChart.setAttribute('aria-label', `N 從 0 到 ${chartMax} 的誤差曲線。目前 N = ${state.n}，錯誤率 ${model.errors[state.n].toFixed(3)}%。`);
+  errorChart.setAttribute('aria-label', `N 從 0 到 ${chartMax} 的誤差曲線。目前 N = ${state.n}，誤差 ${model.errors[state.n].toFixed(3)}%。`);
 }
 
 function renderAnimation() {
@@ -295,7 +301,7 @@ drawCanvas.addEventListener('pointerup', event => {
   if (!state.drawing || event.pointerId !== state.pointerId) return;
   state.drawing = false; state.pointerId = null;
   if (drawCanvas.hasPointerCapture(event.pointerId)) drawCanvas.releasePointerCapture(event.pointerId);
-  if (state.draft.length < 4) { notify('請按住滑鼠拖曳，畫出一段線條。'); renderDrawing(); return; }
+  if (state.draft.length < 4) { notify('線條太短，請按住拖曳畫長一點。'); renderDrawing(); return; }
   fit(state.draft, { source: 'draw' }); state.draft = [];
 });
 function cancelDrawing() { if (state.drawing) { state.drawing = false; state.pointerId = null; state.draft = []; renderDrawing(); } }
@@ -330,7 +336,7 @@ for (const [id, key] of [['originalToggle', 'showOriginal'], ['circlesToggle', '
 $('clearButton').addEventListener('click', () => {
   Object.assign(state, { points: [], shape: [], model: null, draft: [], example: null, source: 'draw', image: null, t: 0 });
   document.querySelectorAll('[data-example]').forEach(button => { button.classList.remove('active'); button.setAttribute('aria-pressed', 'false'); });
-  $('pointCount').textContent = '等待繪製'; updateFit(); renderDrawing(); save(); syncImageControls();
+  $('pointCount').textContent = '尚無路徑'; updateFit(); renderDrawing(); save(); syncImageControls();
 });
 $('playButton').addEventListener('click', () => { state.playing = !state.playing; if (state.t >= 1) state.t = 0; updatePlayback(); });
 $('restartButton').addEventListener('click', () => { state.t = 0; state.playing = true; renderAnimation(); updatePlayback(); });
@@ -348,7 +354,7 @@ function downloadFile(name, content, type) {
 $('copyButton').addEventListener('click', async () => {
   if (!state.model) return;
   const text = formulaText(state.model, state.n);
-  try { await navigator.clipboard.writeText(text); notify('完整 X、Y 公式已複製。'); }
+  try { await navigator.clipboard.writeText(text); notify('已複製 x(t)、y(t) 公式。'); }
   catch { downloadFile(`fourier-N${state.n}-formula.txt`, text, 'text/plain;charset=utf-8'); notify('無法存取剪貼簿，已改為下載完整公式。'); }
 });
 $('downloadButton').addEventListener('click', () => {
