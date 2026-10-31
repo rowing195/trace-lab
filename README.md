@@ -20,6 +20,8 @@ npm start
 
 第一次使用前，需在 repo 的 Settings → Pages 把 Source 設為「GitHub Actions」。
 
+本專案也以 submodule 收錄在 [game-hub](https://github.com/rowing195/game-hub)（<https://rowing195.github.io/game-hub/>）。推送到 `main` 時，`.github/workflows/notify-game-hub.yml` 會通知 game-hub 更新子模組並重新部署；需在本 repo 設定 `GAME_HUB_DISPATCH_TOKEN` secret（設定方式見 game-hub 的 README）。
+
 ## 操作
 
 - 在「路徑」區按住拖曳畫一筆，新的一筆會取代舊路徑。「平滑手繪筆跡」（預設開啟）會先去除滑鼠與手指的抖動，起點與終點不動。
